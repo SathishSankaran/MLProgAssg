@@ -1,0 +1,112 @@
+---
+title: "Prog Assignment"
+author: "Sathish"
+date: "February 25, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases.
+
+## Load libraries
+
+```{r echo=TRUE}
+suppressMessages(library(plyr)) # sapply
+suppressMessages(library(caret)) # Machine Learning
+suppressMessages(library(e1071)) # SVM
+suppressMessages(library(rpart)) # Partition
+suppressMessages(library(rattle)) # fancyRPlot
+suppressMessages(library(randomForest)) # Random Forest (faster than caret)
+suppressMessages(library(gbm)) # Boosting (faster than caret)
+```
+
+## Load data
+
+Load training and test datasets. Note that a number of columns are empty or contain NA values, which will not be used in the model. Also, the first 6 columns do not contain information that are relevant for a predictor.
+
+```{r echo=TRUE}
+trainset <- read.csv("pml-training.csv",na.strings=c("","NA"),row.names=1)
+testset <- read.csv("pml-training.csv",na.strings=c("","NA"),row.names=1)
+
+## Remove unnecessary columns (bad data, not relevant data etc.)
+trainset <- trainset[,!sapply(trainset,function (x) any(is.na(x)))]
+testset <- testset[,!sapply(testset,function (x) any(is.na(x)))]
+
+trainset <- trainset[,-c(1:6)]
+testset <- testset[,-c(1:6)]
+```
+
+## Reproducibility
+
+Create training, validation and test data sets with reproducible results.
+
+```{r echo=TRUE}
+set.seed(19)
+inTrain <- createDataPartition(trainset$classe,p=0.7,list=FALSE)
+training <- trainset[inTrain,]
+validation <- trainset[-inTrain,]
+```
+
+## Recursive Partitioning
+
+Try recursive partitioning using all predictors. The accuracy of this method is not very high - just as good as a random coin toss.
+
+```{r echo=FALSE}
+fit1 <- train(classe ~ .,data=training,method="rpart")
+p1 <- predict(fit1,validation)
+cm1 <- confusionMatrix(p1,validation$classe)
+print(cm1$overall[1])
+fancyRpartPlot(fit1$finalModel)
+```
+
+## Random Forest
+
+Next try Random Forest. It produces high accuracy and the importance plot shows the relevant variables.
+
+```{r echo=TRUE}
+fit2 <- randomForest(classe ~ .,data=training,proximity=TRUE)
+p2 <- predict(fit2,validation)
+cm2 <- confusionMatrix(p2,validation$classe)
+print(cm2$overall[1])
+plot(fit2, log="y")
+varImpPlot(fit2)
+```
+
+## Support Vector Machine
+
+SVM also produces good results but not quite as high as Random Forest.
+
+```{r echo=TRUE}
+fit3 <- svm(classe ~ .,data=training)
+p3 <- predict(fit3,validation)
+cm3 <- confusionMatrix(p3,validation$classe)
+print(cm3$overall[1])
+```
+
+## Linear Discriminant Analysis
+
+Next try LDA but it doesn't perform nearly as well.
+
+```{r echo=TRUE}
+fit4 <- train(classe ~ .,data=training,method="lda")
+p4 <- predict(fit4,validation)
+cm4 <- confusionMatrix(p4,validation$classe)
+print(cm4$overall[1])
+```
+
+## Predict using test set and Random Forest model
+
+Calculate out of sample error using test data set. Random Forest method is used because of it's high accuracy during training phase. This doesn't disappoint and produces good accuracy rates on the test data set.
+
+```{r echo=TRUE}
+p <- predict(fit2,testset)
+print(confusionMatrix(p,testset$classe)$overall[1])
+```
+
